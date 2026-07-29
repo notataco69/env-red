@@ -1,0 +1,6 @@
+{
+  "type": "shipment",
+  "package_id": "PKG123",
+  "location": "Denver Hub",
+  "status": "in_transit"
+}

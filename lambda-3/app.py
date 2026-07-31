@@ -24,6 +24,15 @@ def handler(event, context):
             return {"statusCode": 404, "body": json.dumps({"error": f"no data for {package_id}"})}
         return {"statusCode": 200, "body": json.dumps(resp["Item"], default=decimal_default)}
 
+    elif query == "list_shipments":
+        items = []
+        resp = table.scan()
+        items.extend(resp.get("Items", []))
+        while "LastEvaluatedKey" in resp:
+            resp = table.scan(ExclusiveStartKey=resp["LastEvaluatedKey"])
+            items.extend(resp.get("Items", []))
+        return {"statusCode": 200, "body": json.dumps({"count": len(items), "shipments": items}, default=decimal_default)}
+
     elif query == "feedback_summary":
         key = "processed/feedback-summary.json"
         try:

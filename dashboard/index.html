@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>env-red // ops board</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --page-plane:      #0a0f17;
+    --panel:           #111a28;
+    --panel-2:         #0d1520;
+    --panel-border:    #1f2c40;
+    --cell-water:      #16233a;
+    --cell-water-hi:   #1b2c48;
+    --grid-line:       #22314a;
+    --accent:          #35c2c1;
+    --accent-dim:      #1d6b6a;
+    --text-primary:    #e8edf4;
+    --text-secondary:  #93a1b8;
+    --text-muted:      #536280;
+
+    --status-transit:    #3987e5;
+    --status-delivered:  #17b854;
+    --status-delayed:    #e2493f;
+
+    --focus-ring: #5fd6d5;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--page-plane);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+
+  body {
+    min-height: 100vh;
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .mono {
+    font-family: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+
+  /* ---------- Header ---------- */
+
+  header.board-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--panel-border);
+    padding-bottom: 16px;
+  }
+
+  .board-title {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .board-title .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .board-title h1 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-wrap: balance;
+  }
+
+  .board-title .sub {
+    color: var(--text-secondary);
+    font-size: 13px;
+  }
+
+  .legend {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    padding: 6px 10px 6px 8px;
+    border-radius: 6px;
+  }
+
+  .legend-chip {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+    color: #05110c;
+    flex-shrink: 0;
+  }
+
+  .legend-chip.transit   { background: var(--status-transit); color: #04101f; }
+  .legend-chip.delivered { background: var(--status-delivered); }
+  .legend-chip.delayed   { background: var(--status-delayed); color: #200606; }
+
+  .live-badge {
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+    background: var(--panel-2);
+    border: 1px solid var(--panel-border);
+    padding: 5px 10px;
+    border-radius: 5px;
+    white-space: nowrap;
+  }
+
+  .live-badge.ok::before {
+    content: "\25CF";
+    color: var(--status-delivered);
+    margin-right: 6px;
+  }
+
+  .live-badge.err {
+    color: var(--status-delayed);
+    border-color: rgba(226,73,63,0.4);
+  }
+
+  .live-badge.err::before {
+    content: "\25CF";
+    color: var(--status-delayed);
+    margin-right: 6px;
+  }
+
+  .refresh-btn {
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+    background: transparent;
+    border: 1px solid var(--accent-dim);
+    padding: 5px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+
+  .refresh-btn:hover { background: rgba(53,194,193,0.1); }
+  .refresh-btn:disabled { opacity: 0.5; cursor: default; }
+
+  .board-empty {
+    color: var(--text-muted);
+    font-size: 13px;
+    padding: 20px 4px;
+  }
+
+  /* ---------- Layout ---------- */
+
+  .layout {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .board-panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 18px;
+    flex: 1 1 560px;
+    overflow-x: auto;
+  }
+
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    flex: 0 1 300px;
+    min-width: 260px;
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+
+  .panel h2 {
+    margin: 0 0 12px 0;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    font-weight: 600;
+  }
+
+  /* ---------- Grid board ---------- */
+
+  .grid-scroll {
+    display: inline-block;
+    min-width: 100%;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 34px repeat(10, 48px);
+    grid-auto-rows: 48px;
+    gap: 3px;
+  }
+
+  .col-head, .row-head {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+
+  .cell {
+    position: relative;
+    border-radius: 5px;
+    border: 1px solid var(--grid-line);
+    background: var(--cell-water);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: default;
+    transition: transform 0.12s ease, border-color 0.12s ease;
+  }
+
+  .cell.filled {
+    cursor: pointer;
+  }
+
+  .cell.filled:hover,
+  .cell.filled:focus-visible {
+    transform: scale(1.06);
+    border-color: var(--accent);
+    z-index: 2;
+  }
+
+  .cell.filled:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+  }
+
+  .cell.selected {
+    border-color: var(--focus-ring);
+    box-shadow: 0 0 0 1px var(--focus-ring);
+  }
+
+  .cell .status-code {
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .cell .pkg-id {
+    font-size: 8px;
+    letter-spacing: 0.02em;
+    opacity: 0.85;
+    margin-top: 2px;
+  }
+
+  .cell.transit    { background: color-mix(in srgb, var(--status-transit) 30%, var(--cell-water)); }
+  .cell.transit    .status-code { color: var(--status-transit); }
+
+  .cell.delivered  { background: color-mix(in srgb, var(--status-delivered) 26%, var(--cell-water)); }
+  .cell.delivered  .status-code { color: var(--status-delivered); }
+
+  .cell.delayed    { background: color-mix(in srgb, var(--status-delayed) 34%, var(--cell-water)); }
+  .cell.delayed    .status-code { color: var(--status-delayed); }
+
+  .cell.delayed::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: 7px;
+    border: 1px solid var(--status-delayed);
+    opacity: 0.55;
+    animation: pulse 2.2s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cell.delayed::after { animation: none; }
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.15; }
+    50% { opacity: 0.6; }
+  }
+
+  .cell .pkg-id, .cell .status-code { color: var(--text-primary); }
+
+  /* ---------- Detail panel ---------- */
+
+  #detail-empty {
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+
+  .detail-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 13px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--panel-border);
+  }
+
+  .detail-row:last-child { border-bottom: none; }
+
+  .detail-row .k { color: var(--text-secondary); }
+  .detail-row .v { color: var(--text-primary); font-variant-numeric: tabular-nums; text-align: right; }
+
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 999px;
+    letter-spacing: 0.03em;
+  }
+
+  .status-pill.transit    { background: rgba(57,135,229,0.15); color: var(--status-transit); }
+  .status-pill.delivered  { background: rgba(23,184,84,0.15); color: var(--status-delivered); }
+  .status-pill.delayed    { background: rgba(226,73,63,0.18); color: var(--status-delayed); }
+
+  /* ---------- Sentiment scoreboard ---------- */
+
+  .sentiment-total {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .sentiment-total .num {
+    font-size: 28px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .sentiment-total .label {
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+
+  .sentiment-bar {
+    display: flex;
+    height: 8px;
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 14px;
+    background: var(--cell-water);
+  }
+
+  .sentiment-bar span { display: block; height: 100%; }
+
+  .sentiment-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .sentiment-tile {
+    background: var(--panel-2);
+    border: 1px solid var(--panel-border);
+    border-radius: 7px;
+    padding: 8px 10px;
+  }
+
+  .sentiment-tile .n {
+    font-size: 17px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .sentiment-tile .l {
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 2px;
+  }
+
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .dot.pos { background: #17b854; }
+  .dot.neg { background: #e2493f; }
+  .dot.neu { background: #7c8aa3; }
+  .dot.mix { background: #c98500; }
+
+  footer {
+    color: var(--text-muted);
+    font-size: 11px;
+    text-align: center;
+    padding-top: 4px;
+  }
+</style>
+</head>
+<body>
+
+  <header class="board-header">
+    <div class="board-title">
+      <span class="eyebrow mono">env-red</span>
+      <h1>Shipment Ops Board</h1>
+      <span class="sub">Live grid view of in-flight packages, keyed like a spotting board — coordinate per shipment.</span>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span class="live-badge mono" id="live-badge">connecting&hellip;</span>
+        <button class="refresh-btn mono" id="refresh-btn" type="button">refresh</button>
+      </div>
+      <div class="legend">
+        <span class="legend-item"><span class="legend-chip transit">T</span> In transit</span>
+        <span class="legend-item"><span class="legend-chip delivered">D</span> Delivered</span>
+        <span class="legend-item"><span class="legend-chip delayed">!</span> Delayed (past SLA)</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="layout">
+    <div class="board-panel">
+      <div class="grid-scroll">
+        <div class="grid mono" id="grid"></div>
+      </div>
+    </div>
+
+    <div class="sidebar">
+      <div class="panel">
+        <h2>Selected shipment</h2>
+        <div id="detail-empty">Click a cell to see shipment detail.</div>
+        <div id="detail-body" style="display:none;">
+          <div class="detail-row"><span class="k">Package</span><span class="v mono" id="d-pkg"></span></div>
+          <div class="detail-row"><span class="k">Status</span><span class="v" id="d-status"></span></div>
+          <div class="detail-row"><span class="k">Location</span><span class="v" id="d-location"></span></div>
+          <div class="detail-row"><span class="k">Hours since scan</span><span class="v" id="d-hours"></span></div>
+          <div class="detail-row"><span class="k">Coordinate</span><span class="v mono" id="d-coord"></span></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Feedback sentiment</h2>
+        <div class="sentiment-total">
+          <span class="num" id="s-total">37</span>
+          <span class="label">responses processed</span>
+        </div>
+        <div class="sentiment-bar" id="s-bar"></div>
+        <div class="sentiment-grid">
+          <div class="sentiment-tile"><div class="n" id="s-pos">21</div><div class="l"><span class="dot pos"></span>Positive</div></div>
+          <div class="sentiment-tile"><div class="n" id="s-neg">9</div><div class="l"><span class="dot neg"></span>Negative</div></div>
+          <div class="sentiment-tile"><div class="n" id="s-neu">5</div><div class="l"><span class="dot neu"></span>Neutral</div></div>
+          <div class="sentiment-tile"><div class="n" id="s-mix">2</div><div class="l"><span class="dot mix"></span>Mixed</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>Grid reflects <span class="mono">env-red-shipments</span> · scoreboard reflects <span class="mono">processed/feedback-summary.json</span> — both read live via <span class="mono">env-red-lambda-3</span>.</footer>
+
+<script>
+  const COLS_MAX = 10;
+  const ROW_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const grid = document.getElementById("grid");
+  const liveBadge = document.getElementById("live-badge");
+  const refreshBtn = document.getElementById("refresh-btn");
+
+  function statusCode(s) {
+    if (s.delayed) return "!";
+    if (s.status === "delivered") return "D";
+    return "T";
+  }
+
+  function statusClass(s) {
+    if (s.delayed) return "delayed";
+    if (s.status === "delivered") return "delivered";
+    return "transit";
+  }
+
+  function statusLabel(s) {
+    if (s.delayed) return "Delayed";
+    if (s.status === "delivered") return "Delivered";
+    return "In transit";
+  }
+
+  function renderGrid(shipments) {
+    grid.innerHTML = "";
+    grid.style.gridTemplateColumns = `34px repeat(${COLS_MAX}, 48px)`;
+
+    if (shipments.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "board-empty";
+      empty.style.gridColumn = `1 / span ${COLS_MAX + 1}`;
+      empty.textContent = "No shipments in env-red-shipments yet.";
+      grid.appendChild(empty);
+      return;
+    }
+
+    const sorted = [...shipments].sort((a, b) => a.package_id.localeCompare(b.package_id));
+    const rowCount = Math.max(4, Math.ceil(sorted.length / COLS_MAX));
+    const rows = ROW_LETTERS.slice(0, rowCount).split("");
+
+    const byCoord = {};
+    sorted.forEach((s, i) => {
+      const r = rows[Math.floor(i / COLS_MAX)];
+      const c = (i % COLS_MAX) + 1;
+      byCoord[`${r}${c}`] = s;
+    });
+
+    grid.appendChild(document.createElement("div")); // corner
+    for (let c = 1; c <= COLS_MAX; c++) {
+      const h = document.createElement("div");
+      h.className = "col-head";
+      h.textContent = c;
+      grid.appendChild(h);
+    }
+
+    rows.forEach(r => {
+      const rh = document.createElement("div");
+      rh.className = "row-head";
+      rh.textContent = r;
+      grid.appendChild(rh);
+
+      for (let c = 1; c <= COLS_MAX; c++) {
+        const coord = `${r}${c}`;
+        const s = byCoord[coord];
+        const cell = document.createElement("div");
+        cell.className = "cell";
+        cell.dataset.coord = coord;
+
+        if (s) {
+          cell.classList.add("filled", statusClass(s));
+          cell.tabIndex = 0;
+          cell.setAttribute("role", "button");
+          cell.setAttribute("aria-label", `${coord}: ${s.package_id}, ${statusLabel(s)}`);
+          cell.innerHTML = `<span class="status-code">${statusCode(s)}</span><span class="pkg-id">${coord}</span>`;
+          cell.addEventListener("click", () => selectCell(cell, s, coord));
+          cell.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectCell(cell, s, coord); }
+          });
+        } else {
+          cell.innerHTML = `<span class="pkg-id" style="opacity:0.35;">${coord}</span>`;
+        }
+
+        grid.appendChild(cell);
+      }
+    });
+  }
+
+  function selectCell(cell, s, coord) {
+    document.querySelectorAll(".cell.selected").forEach(el => el.classList.remove("selected"));
+    cell.classList.add("selected");
+
+    document.getElementById("detail-empty").style.display = "none";
+    document.getElementById("detail-body").style.display = "block";
+    document.getElementById("d-pkg").textContent = s.package_id;
+    document.getElementById("d-location").textContent = s.location || "—";
+    document.getElementById("d-hours").textContent = `${Number(s.hours_since_received || 0).toFixed(1)}h`;
+    document.getElementById("d-coord").textContent = coord;
+
+    const statusEl = document.getElementById("d-status");
+    statusEl.innerHTML = `<span class="status-pill ${statusClass(s)}">${statusCode(s)} ${statusLabel(s)}</span>`;
+  }
+
+  function renderSentiment(summary) {
+    const counts = {
+      pos: summary.POSITIVE || 0,
+      neg: summary.NEGATIVE || 0,
+      neu: summary.NEUTRAL || 0,
+      mix: summary.MIXED || 0,
+    };
+    const total = summary.total || (counts.pos + counts.neg + counts.neu + counts.mix);
+
+    document.getElementById("s-total").textContent = total;
+    document.getElementById("s-pos").textContent = counts.pos;
+    document.getElementById("s-neg").textContent = counts.neg;
+    document.getElementById("s-neu").textContent = counts.neu;
+    document.getElementById("s-mix").textContent = counts.mix;
+
+    const colors = { pos: "#17b854", neg: "#e2493f", neu: "#7c8aa3", mix: "#c98500" };
+    const bar = document.getElementById("s-bar");
+    bar.innerHTML = "";
+    if (total === 0) return;
+    Object.keys(counts).forEach(k => {
+      if (counts[k] === 0) return;
+      const seg = document.createElement("span");
+      seg.style.width = `${(counts[k] / total) * 100}%`;
+      seg.style.background = colors[k];
+      bar.appendChild(seg);
+    });
+  }
+
+  function setLive(ok, message) {
+    liveBadge.classList.remove("ok", "err");
+    liveBadge.classList.add(ok ? "ok" : "err");
+    liveBadge.textContent = message;
+  }
+
+  async function loadAll() {
+    refreshBtn.disabled = true;
+    setLive(true, "loading…");
+    try {
+      const [shipRes, feedRes] = await Promise.all([
+        fetch("/api/shipments"),
+        fetch("/api/feedback-summary"),
+      ]);
+      const shipJson = await shipRes.json();
+      const feedJson = await feedRes.json();
+
+      if (!shipRes.ok) throw new Error(shipJson.error || "shipments request failed");
+      if (!feedRes.ok) throw new Error(feedJson.error || "feedback request failed");
+
+      renderGrid(shipJson.shipments || []);
+      renderSentiment(feedJson);
+
+      const stamp = new Date().toLocaleTimeString();
+      setLive(true, `live · updated ${stamp}`);
+    } catch (err) {
+      setLive(false, `offline · ${err.message}`);
+    } finally {
+      refreshBtn.disabled = false;
+    }
+  }
+
+  refreshBtn.addEventListener("click", loadAll);
+  loadAll();
+</script>
+
+</body>
+</html>

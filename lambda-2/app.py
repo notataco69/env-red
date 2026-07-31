@@ -1,16 +1,19 @@
 import json
 import boto3
 import os
+from decimal import Decimal
 from datetime import datetime, timezone
 from urllib.parse import unquote_plus
 
 s3 = boto3.client("s3")
 comprehend = boto3.client("comprehend")
+dynamodb = boto3.resource("dynamodb")
 BUCKET = os.environ["BUCKET_NAME"]
 SLA_HOURS = float(os.environ.get("SLA_HOURS", 48))
+TABLE_NAME = os.environ.get("TABLE_NAME", "env-red-shipments")
+table = dynamodb.Table(TABLE_NAME)
 
 def handler(event, context):
-    # S3 triggers this automatically and tells us which file just showed up
     record = event["Records"][0]
     key = unquote_plus(record["s3"]["object"]["key"])
 
@@ -29,10 +32,9 @@ def process_shipment(data):
     received_at = datetime.fromisoformat(data["received_at"])
     hours_elapsed = (datetime.now(timezone.utc) - received_at).total_seconds() / 3600
     data["delayed"] = data.get("status") != "delivered" and hours_elapsed > SLA_HOURS
-    data["hours_since_received"] = round(hours_elapsed, 2)
+    data["hours_since_received"] = Decimal(str(round(hours_elapsed, 2)))
 
-    key = f"processed/shipment/{data['package_id']}.json"
-    s3.put_object(Bucket=BUCKET, Key=key, Body=json.dumps(data), ContentType="application/json")
+    table.put_item(Item=data)
 
 
 def process_feedback(data):
@@ -43,7 +45,6 @@ def process_feedback(data):
     data["sentiment"] = sentiment["Sentiment"]
     data["key_phrases"] = [p["Text"] for p in phrases["KeyPhrases"]]
 
-    # save this individual enriched feedback entry
     s3.put_object(
         Bucket=BUCKET,
         Key=f"processed/feedback/{data['received_at']}.json",
@@ -51,7 +52,6 @@ def process_feedback(data):
         ContentType="application/json"
     )
 
-    # update the running summary
     summary_key = "processed/feedback-summary.json"
     try:
         existing = json.loads(s3.get_object(Bucket=BUCKET, Key=summary_key)["Body"].read())
